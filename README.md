@@ -1,6 +1,6 @@
 # skill-test: wpływ skilli na wydajność agenta
 
-Test porównuje dwa sposoby podania agentowi tej samej wiedzy proceduralnej:
+Test porównuje sposoby podania agentowi tej samej wiedzy proceduralnej:
 
 | | Wariant A | Wariant B |
 |---|---|---|
@@ -11,6 +11,11 @@ Test porównuje dwa sposoby podania agentowi tej samej wiedzy proceduralnej:
 | Prompt usera | identyczny | identyczny |
 | Model | `claude-haiku-5-5` | `claude-haiku-5-5` |
 | Prompt caching | `AnthropicPromptCachingMiddleware` | to samo (deepagents dodaje je automatycznie) |
+
+Wariant **C (B-min)** to te same skille bez harnessu deepagents: zwykły
+`create_agent` z `SkillsMiddleware` i `FilesystemMiddleware` ograniczonym do jednego
+narzędzia `read_file` (bez ls, write_file, edit_file, delete, glob, grep i task).
+Mierzy czysty efekt skilli bez narzutu frameworka.
 
 ## Domena: analiza wniosków kredytowych
 
@@ -78,7 +83,7 @@ Opcje `run_benchmark`: `--runs N`, `--cases-per-run 15`, `--seed N`,
 `--dry-run` (skryptowany model bez API, tylko do sprawdzenia pipeline'u; tokeny
 w nim to szacunki).
 
-Pełny przebieg to 3 × 15 × 2 = 90 zadań, ok. 225 wywołań modelu.
+Pełny przebieg to 3 × 15 × 3 warianty = 135 zadań, ok. 360 wywołań modelu.
 
 ### Model lokalny
 

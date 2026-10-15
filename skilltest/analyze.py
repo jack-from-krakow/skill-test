@@ -81,20 +81,20 @@ def main() -> None:
     add("")
     add("## Średnie na jedno zadanie (jedna aplikacja kredytowa)")
     add("")
-    add("| Metryka | " + " | ".join(f"Wariant {v} (n={len(by_v[v])})" for v in variants) + (" | B / A |" if variants == ["A", "B"] else " |"))
-    add("|---|" + "---|" * len(variants) + ("---|" if variants == ["A", "B"] else ""))
+    others = [v for v in variants if v != "A"] if "A" in by_v else []
+    add("| Metryka | " + " | ".join(f"Wariant {v} (n={len(by_v[v])})" for v in variants) + "".join(f" | {v} / A" for v in others) + " |")
+    add("|---|" + "---|" * (len(variants) + len(others)))
     for key, label, kind in METRICS:
         cells = []
         for v in variants:
             m, s = mean(by_v[v], key), sd(by_v[v], key)
             cells.append(fmt(m, kind) + (f" ± {fmt(s, kind)}" if kind not in ("pct",) and s else ""))
-        ratio = ""
-        if variants == ["A", "B"] and kind not in ("pct",):
-            a, b = mean(by_v["A"], key), mean(by_v["B"], key)
-            ratio = f" {b / a:.2f}× |" if a else " – |"
-        elif variants == ["A", "B"]:
-            ratio = " |"
-        add(f"| {label} | " + " | ".join(cells) + " |" + ratio)
+        for v in others:
+            a, b = mean(by_v["A"], key), mean(by_v[v], key)
+            cells.append("" if kind == "pct" else (f"{b / a:.2f}×" if a else "–"))
+        add(f"| {label} | " + " | ".join(cells) + " |")
+    add("")
+    add("Warianty: A = wszystkie procedury w system prompcie; B = deepagents + skille; C = B-min (skille + tylko read_file, bez harnessu deepagents).")
     add("")
 
     add("## Według powtórzenia (wpływ cache)")
@@ -149,11 +149,11 @@ def main() -> None:
         add(f"- **{v}**: " + (", ".join(f"`{k}` ×{n}" for k, n in c.most_common()) or "brak"))
     add("")
 
-    if "B" in by_v:
-        b = by_v["B"]
+    for v in [v for v in variants if v in ("B", "C")]:
+        b = by_v[v]
         read_ok = sum(1 for r in b if r.get("read_expected_skill"))
         n_reads = [len(r.get("skill_reads") or []) for r in b]
-        add("## Zachowanie skilli w wariancie B")
+        add(f"## Zachowanie skilli w wariancie {v}")
         add("")
         add(f"- Przeczytano właściwy skill: {read_ok}/{len(b)} zadań")
         add(f"- Średnio odczytów `read_file` na zadanie: {st.mean(n_reads):.2f} (max {max(n_reads)})")

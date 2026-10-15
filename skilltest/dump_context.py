@@ -1,4 +1,4 @@
-"""Dump the exact Anthropic request of every model call for one case, A and B.
+"""Dump the exact Anthropic request of every model call for one case, A, B and C.
 
     python -m skilltest.dump_context [case_index] > context.md
 
@@ -67,8 +67,8 @@ def main() -> None:
     out.append("Szacunek tokenów = znaki / 4 (orientacyjnie; realne liczby per wywołanie są w runs.jsonl).")
     out.append("")
     summary = []
-    for variant in ("A", "B"):
-        model = CapturingAnthropic(model="claude-haiku-5-5", case=case, skill_path=skill if variant == "B" else None, payloads=[])
+    for variant in ("A", "B", "C"):
+        model = CapturingAnthropic(model="claude-haiku-5-5", case=case, skill_path=skill if variant != "A" else None, payloads=[])
         BUILDERS[variant](model).invoke({"messages": [HumanMessage(case["prompt"])]})
         out.append(f"## Wariant {variant}: {len(model.payloads)} wywołania modelu")
         out.append("")
@@ -100,7 +100,7 @@ def main() -> None:
     head = ["## Podsumowanie", "", "| Wariant | Wywołanie | system | narzędzia | wiadomości | razem |", "|---|---|---|---|---|---|"]
     for v, n, s, t, nt, m, tot in summary:
         head.append(f"| {v} | {n} | {s // 4:,} | {t // 4:,} ({nt}) | {m // 4:,} | **{tot // 4:,}** |")
-    for v in ("A", "B"):
+    for v in ("A", "B", "C"):
         head.append(f"| {v} | **suma** | | | | **{sum(r[6] for r in summary if r[0] == v) // 4:,}** |")
     head.append("")
     print("\n".join(out[:4] + head + out[4:]))

@@ -94,3 +94,16 @@ def test_tool_takes_at_least_20ms():
     t0 = time.perf_counter()
     engine.credit_analysis_engine.invoke(CASES[0]["expected"])
     assert time.perf_counter() - t0 >= 0.020
+
+
+def test_variant_c_has_only_read_file_and_engine():
+    from skilltest.dump_context import CapturingAnthropic
+
+    case = CASES[2]
+    skill = f"/skills/{BY_CODE[case['procedure_code']].skill_name}/SKILL.md"
+    engine.CALL_LOG.clear()
+    model = CapturingAnthropic(model="claude-haiku-5-5", case=case, skill_path=skill, payloads=[])
+    BUILDERS["C"](model).invoke({"messages": [HumanMessage(case["prompt"])]})
+    assert len(model.payloads) == 3
+    assert sorted(t["name"] for t in model.payloads[0]["tools"]) == ["credit_analysis_engine", "read_file"]
+    assert grade(engine.CALL_LOG[0], case["expected"])["fully_correct"]

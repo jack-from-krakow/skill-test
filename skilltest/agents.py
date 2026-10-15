@@ -68,4 +68,30 @@ def build_variant_b(model: BaseChatModel):
     )
 
 
-BUILDERS = {"A": build_variant_a, "B": build_variant_b}
+def build_variant_c(model: BaseChatModel):
+    """C ("B-min"): the same skills, but without the deepagents harness.
+
+    A plain ``create_agent`` with only what skills need: deepagents'
+    SkillsMiddleware (skill list in the system prompt) and its FilesystemMiddleware
+    restricted to the single ``read_file`` tool. No ls/write/edit/delete/glob/grep,
+    no ``task`` subagent tool. Measures the effect of skills without the
+    framework's overhead.
+    """
+    from deepagents.backends import FilesystemBackend
+    from deepagents.middleware.filesystem import FilesystemMiddleware
+    from deepagents.middleware.skills import SkillsMiddleware
+
+    backend = FilesystemBackend(root_dir=SKILLS_DIR.parent, virtual_mode=True)
+    return create_agent(
+        model,
+        tools=[credit_analysis_engine],
+        system_prompt=system_prompt_b(),
+        middleware=[
+            FilesystemMiddleware(backend=backend, tools=["read_file"]),
+            SkillsMiddleware(backend=backend, sources=["/skills/"]),
+            AnthropicPromptCachingMiddleware(unsupported_model_behavior="ignore"),
+        ],
+    )
+
+
+BUILDERS = {"A": build_variant_a, "B": build_variant_b, "C": build_variant_c}

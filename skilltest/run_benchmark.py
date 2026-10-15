@@ -91,7 +91,7 @@ def run_one(variant: str, case: dict, model, recursion_limit: int = 30) -> dict:
         **g,
         "engine_args": first_call,
         "skill_reads": skill_reads,
-        "read_expected_skill": expected_skill in skill_reads if variant == "B" else None,
+        "read_expected_skill": expected_skill in skill_reads if variant in ("B", "C") else None,
         "final_text": final_text[:2000],
         "error": error,
     }
@@ -100,7 +100,7 @@ def run_one(variant: str, case: dict, model, recursion_limit: int = 30) -> dict:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", type=int, default=3)
-    ap.add_argument("--variants", nargs="+", default=["A", "B"], choices=["A", "B"])
+    ap.add_argument("--variants", nargs="+", default=["A", "B", "C"], choices=["A", "B", "C"], help="C = B-min: skills with read_file only, no deepagents harness")
     ap.add_argument("--cases-per-run", type=int, default=15, help="random procedures per repetition (max 80)")
     ap.add_argument("--seed", type=int, default=None, help="base seed (default: random, saved in meta.json)")
     ap.add_argument("--model", default=DEFAULT_MODEL, help="claude-haiku-5-5 | ollama:<model> | openai:<model>")
@@ -148,7 +148,7 @@ def main() -> None:
                     from .fake_model import ScriptedModel
 
                     skill = f"/skills/{BY_CODE[case['procedure_code']].skill_name}/SKILL.md"
-                    model = ScriptedModel(case=case, skill_path=skill if variant == "B" else None)
+                    model = ScriptedModel(case=case, skill_path=skill if variant in ("B", "C") else None)
                 else:
                     model = make_model(args.model, args.effort, args.num_ctx)
                 r = run_one(variant, case, model)
