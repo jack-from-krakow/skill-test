@@ -1,0 +1,8 @@
+deepagents==0.7.25
+langchain==1.4.6
+langchain-anthropic==1.7.6
+langchain-core==1.6.10
+langgraph==1.2.15
+anthropic==1.14.0
+python-dotenv
+pytest
