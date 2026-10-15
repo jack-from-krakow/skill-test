@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .procedures import PROCEDURES, Procedure
+from .procedures import EMPLOYMENT_LABEL, EUR_PLN, PROCEDURES, Procedure
 
 SKILLS_DIR = Path(__file__).parent / "skills"
 
@@ -21,8 +21,8 @@ def describe(p: Procedure) -> str:
     """Short description: what the skill-selection step sees in variant B."""
     who = "married applicants (spouse in the household)" if p.marital == "married" else "single applicants (not married)"
     amount = "requested amount ABOVE 50,000 PLN" if p.size == "large" else "requested amount UP TO 50,000 PLN (inclusive)"
-    product = {"auto": "car loan", "home": "home/mortgage loan", "rev": "revolving credit line (overdraft/card limit)"}[p.product]
-    return f"Credit procedure {p.code}: {product} for {who}, {amount}. Read before calling credit_analysis_engine for such an application."
+    product = {"auto": "car loan", "home": "home/mortgage loan", "rev": "revolving credit line (overdraft/card limit)", "cash": "unsecured cash loan"}[p.product]
+    return f"{product.capitalize()} for {who}, {amount}, applicant {EMPLOYMENT_LABEL[p.employment]}."
 
 
 def body(p: Procedure) -> str:
@@ -35,17 +35,27 @@ def body(p: Procedure) -> str:
     add("## When to use")
     amount = "strictly greater than 50,000 PLN" if p.size == "large" else "at most 50,000 PLN (50,000 itself is small)"
     status = "married (a spouse is listed in the application)" if married else "single (no spouse)"
-    product = {"auto": "a car loan", "home": "a home loan secured on residential property", "rev": "a revolving credit line"}[p.product]
-    add(f"Use this procedure when the applicant is {status}, the product is {product} and the requested amount is {amount}.")
+    product = {"auto": "a car loan", "home": "a home loan secured on residential property", "rev": "a revolving credit line", "cash": "an unsecured cash loan"}[p.product]
+    add(
+        f"Use this procedure when the applicant is {status}, the product is {product}, the requested amount is {amount} "
+        f"and the applicant is {EMPLOYMENT_LABEL[p.employment]}."
+    )
     add("")
     add("## Why the procedure looks like this")
     add(p.rationale)
+    add("")
+    add("## Applicant's employment")
+    add(p.employment_note)
     add("")
     add("## How to fill the credit_analysis_engine arguments")
     add(f"- `procedure_code`: `{p.code}`")
     add("- `requested_amount`, `term_months`: copy from the application.")
 
     inc = f"applicant base income + {_pct(p.bonus_share)} of applicant bonus income"
+    if p.employment == "foreign_income":
+        inc = f"(applicant base income + {_pct(p.bonus_share)} of applicant bonus income, both converted from EUR at the quoted rate)"
+    if p.income_factor != 1.0:
+        inc = f"{_pct(p.income_factor)} x ({inc})"
     if married:
         if p.spouse_factor > 0:
             inc += (

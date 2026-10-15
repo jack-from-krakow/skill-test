@@ -5,8 +5,8 @@ Test porównuje dwa sposoby podania agentowi tej samej wiedzy proceduralnej:
 | | Wariant A | Wariant B |
 |---|---|---|
 | Framework | LangChain `create_agent` (zwykły agent z function calling) | LangChain **deepagents** `create_deep_agent` |
-| Wiedza o 12 procedurach | wszystkie 12 opisów w jednym system prompcie | 12 skilli (`SKILL.md`), agent widzi tylko nazwy i opisy, pełną treść czyta `read_file` na żądanie |
-| System prompt | nagłówek + 12 procedur (~24 tys. znaków) | ten sam nagłówek + jedno zdanie o skillach (+ lista skilli dodawana przez deepagents) |
+| Wiedza o 80 procedurach | wszystkie 80 opisów w jednym system prompcie | 80 skilli (`SKILL.md`), agent widzi tylko nazwy i opisy, pełną treść czyta `read_file` na żądanie |
+| System prompt | nagłówek + 80 procedur (~200 tys. znaków, ok. 50 tys. tokenów) | ten sam nagłówek + jedno zdanie o skillach (+ lista skilli dodawana przez deepagents) |
 | Tool | `credit_analysis_engine` (identyczny, stub, min. 20 ms) | `credit_analysis_engine` (identyczny) + wbudowane narzędzia deepagents |
 | Prompt usera | identyczny | identyczny |
 | Model | `claude-haiku-5-5` | `claude-haiku-5-5` |
@@ -16,24 +16,31 @@ Test porównuje dwa sposoby podania agentowi tej samej wiedzy proceduralnej:
 
 Agent dostaje kompletny wniosek kredytowy i ma wywołać **dokładnie raz** funkcję
 `credit_analysis_engine` z argumentami przygotowanymi według właściwej procedury.
-Procedur jest 12 = stan cywilny (singiel / małżeństwo) × produkt (auto / dom / kredyt
-obrotowy) × kwota (do 50 000 PLN / powyżej 50 000 PLN). Każda procedura ma inne
-reguły liczenia dochodu (premie, dochód małżonka), kosztów utrzymania, zobowiązań
-(limity kart), inne limity DTI/LTV, stress test, zabezpieczenie, model scoringowy,
-dokumenty i dodatkowe weryfikacje. Opisy mają ok. 300–350 słów (ok. 450–600 tokenów)
-każdy i są w [`skilltest/skills/*/SKILL.md`](skilltest/skills).
+Procedur jest 80 = stan cywilny (singiel / małżeństwo) × produkt (auto / dom /
+kredyt obrotowy / gotówkowy) × kwota (do 50 000 PLN / powyżej) × zatrudnienie
+(umowa o pracę / działalność / umowa zlecenie / emeryt / dochód w EUR z zagranicy).
+16 procedur bazowych definiuje reguły liczenia dochodu (premie, dochód małżonka),
+kosztów utrzymania, zobowiązań (limity kart), limity DTI/LTV, stress test,
+zabezpieczenie, model scoringowy, dokumenty i weryfikacje. Typ zatrudnienia je
+modyfikuje (haircut dochodu, premie, przeliczenie EUR, dokumenty, weryfikacje,
+model scoringowy). Do tego każda procedura ma drobne, deterministyczne korekty
+limitu DTI i kosztów utrzymania, więc liczb jednej procedury nie da się
+wywnioskować z sąsiednich i agent musi przeczytać właściwą. Opisy mają ok.
+310–430 słów (ok. 450–650 tokenów) i są w [`skilltest/skills/*/SKILL.md`](skilltest/skills).
 
 Parametry procedur są w jednym miejscu, [`skilltest/procedures.py`](skilltest/procedures.py).
 Z niego generowane są zarówno pliki `SKILL.md` (`python -m skilltest.render_skills`),
-jak i klucz odpowiedzi do oceny, więc tekst czytany przez model i oczekiwane wartości
-nie mogą się rozjechać. Wariant A składa system prompt z tych samych plików
+jak i klucz odpowiedzi do oceny. Wariant A składa system prompt z tych samych plików
 (bez frontmattera), więc merytoryka jest identyczna.
 
-12 przypadków testowych (po jednym na procedurę) jest w
-[`skilltest/cases.py`](skilltest/cases.py). Prompt nie mówi, która procedura obowiązuje.
-Kilka przypadków ma pułapki: kwota dokładnie 50 000 PLN (to jeszcze „mała”),
-mały kredyt obrotowy dla małżeństwa (dochód i zobowiązania małżonka trzeba
-zignorować, ale koszty utrzymania liczy się dla dwóch dorosłych).
+Przypadki testowe są losowane ([`skilltest/cases.py`](skilltest/cases.py)): w każdym
+powtórzeniu losowane jest 15 różnych procedur z 80 i dla każdej generowany jest
+kompletny wniosek. Warianty A i B w danym powtórzeniu dostają identyczne wnioski.
+Seed jest zapisany w `meta.json`, a wylosowane wnioski w `cases_rep<N>.json`.
+Prompt nie mówi, która procedura obowiązuje. Wnioski zawierają dane, które
+procedura każe zignorować (premia osoby na działalności lub emeryta, cena auta przy
+kredycie gotówkowym, oszczędności bez zastawu), a 15% małych kwot to dokładnie
+50 000 PLN (to jeszcze „mała”).
 
 ## Co jest mierzone (na każde zadanie)
 
@@ -60,18 +67,29 @@ python -m venv .venv          # Python 3.11+
 pip install -r requirements.txt
 copy .env.example .env      # wpisz ANTHROPIC_API_KEY albo ustaw zmienną środowiskową
 python -m pytest -q tests   # testy offline, bez klucza
-python -m skilltest.run_benchmark --runs 3
+python -m skilltest.run_benchmark --runs 3 --cases-per-run 15
 python -m skilltest.analyze results\<katalog z poprzedniego kroku>
 ```
 
 Linux/macOS analogicznie (`python3 -m venv .venv && . .venv/bin/activate`).
 
-Opcje `run_benchmark`: `--runs N`, `--variants A B`, `--cases c01 c11`,
-`--model claude-haiku-5-5`, `--effort low|medium|high`, `--dry-run` (skryptowany
-model bez API, tylko do sprawdzenia pipeline'u; tokeny w nim to szacunki).
+Opcje `run_benchmark`: `--runs N`, `--cases-per-run 15`, `--seed N`,
+`--variants A B`, `--model claude-haiku-5-5`, `--effort low|medium|high`,
+`--dry-run` (skryptowany model bez API, tylko do sprawdzenia pipeline'u; tokeny
+w nim to szacunki).
 
-Pełny przebieg to 3 × 12 × 2 = 72 zadania, ok. 200 wywołań modelu; przy cenach
-Haiku 5.5 to rząd kilku centów.
+Pełny przebieg to 3 × 15 × 2 = 90 zadań, ok. 225 wywołań modelu.
+
+### Model lokalny
+
+- Ollama: `pip install langchain-ollama`, potem
+  `python -m skilltest.run_benchmark --model ollama:<nazwa modelu> --num-ctx 131072`.
+  `--num-ctx` jest ważne: Ollama domyślnie ma małe okno kontekstu i po cichu
+  ucina prompt, a prompt wariantu A ma ok. 50 tys. tokenów.
+- Serwer zgodny z OpenAI (LM Studio, vLLM, llama.cpp): `pip install langchain-openai`,
+  ustaw `OPENAI_BASE_URL` (np. `http://localhost:1234/v1`) i `OPENAI_API_KEY`
+  (dowolny), potem `--model openai:<nazwa modelu>`.
+- Kolumny cache i koszt w USD dotyczą tylko API Anthropic.
 
 ## Kolejność i cache
 
@@ -84,11 +102,11 @@ pokazuje, ile daje cache.
 
 ```
 skilltest/
-  procedures.py      12 procedur: parametry + oczekiwane argumenty
+  procedures.py      80 procedur: parametry + oczekiwane argumenty
   render_skills.py   generuje skills/*/SKILL.md
-  skills/            12 skilli (wariant B) = treść system promptu wariantu A
+  skills/            80 skilli (wariant B) = treść system promptu wariantu A
   engine.py          tool credit_analysis_engine (deterministyczny) + log wywołań
-  cases.py           12 wniosków testowych
+  cases.py           losowanie i generowanie wniosków testowych
   prompts.py         system prompty A i B
   agents.py          budowa agentów A (create_agent) i B (create_deep_agent)
   metrics.py         zbieranie tokenów/czasu i ocena argumentów

@@ -21,7 +21,7 @@ Document = Literal[tuple(ALL_DOCUMENTS)]  # type: ignore[valid-type]
 Check = Literal[tuple(ALL_CHECKS)]  # type: ignore[valid-type]
 ScoringModel = Literal[tuple(ALL_SCORING_MODELS)]  # type: ignore[valid-type]
 
-BASE_RATE = {"AUTO": 0.09, "HOME": 0.07, "REV": 0.14}
+BASE_RATE = {"AUTO": 0.09, "HOME": 0.07, "REV": 0.14, "CASH": 0.11}
 
 CALL_LOG: list[dict] = []
 

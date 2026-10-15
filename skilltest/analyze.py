@@ -77,7 +77,7 @@ def main() -> None:
     if meta.get("dry_run"):
         add("> **UWAGA: przebieg na sucho (scripted fake model).** Tokeny to szacunki (znaki/4), czasy i trafność nic nie mówią o modelu. Służy tylko do sprawdzenia, że cały pipeline działa.")
         add("")
-    add(f"Model: `{meta['model']}`, effort: `{meta.get('effort') or 'domyślny'}`, powtórzeń: {meta['runs']}, przypadków: {len(meta['cases'])}, start: {meta['started_utc']}.")
+    add(f"Model: `{meta['model']}`, effort: `{meta.get('effort') or 'domyślny'}`, powtórzeń: {meta['runs']}, przypadków na powtórzenie: {meta.get('cases_per_run', len(meta.get('cases', [])))} (losowane, seed {meta.get('seed', '–')}), start: {meta['started_utc']}.")
     add("")
     add("## Średnie na jedno zadanie (jedna aplikacja kredytowa)")
     add("")
@@ -126,6 +126,21 @@ def main() -> None:
             cells.append(f"{ok}/{len(rr)} (tool: {calls})")
         add(f"| {cid} | {proc} | " + " | ".join(cells) + " |")
     add("")
+
+    add("## Trafność według typu zatrudnienia i produktu")
+    add("")
+    groups = sorted({(dim, r["procedure"].lower().split("_", 3)[i]) for r in rows for dim, i in (("zatrudnienie", 3), ("produkt", 1)) if r["procedure"].count("_") >= 3})
+    if groups:
+        add("| Wymiar | Wartość | " + " | ".join(f"{v}: poprawne" for v in variants) + " |")
+        add("|---|---|" + "---|" * len(variants))
+        for dim, val in groups:
+            i = 3 if dim == "zatrudnienie" else 1
+            cells = []
+            for v in variants:
+                rr = [r for r in by_v[v] if r["procedure"].lower().split("_", 3)[i] == val]
+                cells.append(f"{sum(r['fully_correct'] for r in rr)}/{len(rr)}")
+            add(f"| {dim} | {val} | " + " | ".join(cells) + " |")
+        add("")
 
     add("## Najczęstsze błędne pola")
     add("")

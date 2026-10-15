@@ -6,7 +6,7 @@ from langchain_core.messages import HumanMessage
 
 from skilltest import engine
 from skilltest.agents import BUILDERS
-from skilltest.cases import CASES
+from skilltest.cases import sample_cases
 from skilltest.engine import EngineArgs, run_engine
 from skilltest.fake_model import ScriptedModel
 from skilltest.metrics import grade
@@ -15,9 +15,30 @@ from skilltest.prompts import procedure_bodies, system_prompt_a, system_prompt_b
 from skilltest.render_skills import SKILLS_DIR, render
 
 
-def test_one_case_per_procedure():
-    assert len(PROCEDURES) == 12
-    assert sorted(c["procedure_code"] for c in CASES) == sorted(BY_CODE)
+CASES = sample_cases(15, 1234)
+
+
+def test_80_distinct_procedures():
+    assert len(PROCEDURES) == 80 == len(BY_CODE)
+
+
+def test_sampling_is_reproducible_and_distinct():
+    a, b = sample_cases(15, 99), sample_cases(15, 99)
+    assert [c["prompt"] for c in a] == [c["prompt"] for c in b]
+    assert len({c["procedure_code"] for c in a}) == 15
+    assert [c["prompt"] for c in sample_cases(15, 100)] != [c["prompt"] for c in a]
+
+
+def test_every_procedure_generates_a_valid_case():
+    import random
+
+    from skilltest.cases import generate_case
+
+    rng = random.Random(0)
+    for p in PROCEDURES:
+        c = generate_case(p, rng, "t")
+        assert c["procedure_code"] == p.code
+        run_engine(EngineArgs(**c["expected"]))
 
 
 def test_skill_files_are_up_to_date():
@@ -41,7 +62,7 @@ def test_expected_args_are_valid_engine_input():
 
 
 def test_grade_catches_wrong_field():
-    c = CASES[10]  # married revolving small: spouse must be ignored
+    c = CASES[0]
     wrong = dict(c["expected"], monthly_income=c["expected"]["monthly_income"] + 4900)
     assert grade(wrong, c["expected"])["wrong_fields"] == ["monthly_income"]
 
@@ -63,7 +84,7 @@ def test_variant_a_end_to_end_with_scripted_model():
 def test_variant_b_reads_skill_from_disk():
     msgs = _run("B", CASES[3])
     reads = [m for m in msgs if getattr(m, "name", None) == "read_file"]
-    assert reads and "MARRIED_AUTO_LARGE" in reads[0].content
+    assert reads and CASES[3]["procedure_code"] in reads[0].content
     assert len(engine.CALL_LOG) == 1
 
 

@@ -1,7 +1,12 @@
 """Run the A/B benchmark.
 
-    python -m skilltest.run_benchmark --runs 3                # real run, needs ANTHROPIC_API_KEY
-    python -m skilltest.run_benchmark --runs 1 --dry-run      # offline plumbing check, scripted model
+    python -m skilltest.run_benchmark --runs 3 --cases-per-run 15   # real run, needs ANTHROPIC_API_KEY
+    python -m skilltest.run_benchmark --runs 1 --dry-run            # offline plumbing check, scripted model
+    python -m skilltest.run_benchmark --model ollama:qwen3.8:27b    # local model
+
+Every repetition draws its own random sample of procedures (seed = --seed + rep)
+and generates one application per procedure; variants A and B get exactly the
+same applications. The cases of every repetition are saved to cases_rep<N>.json.
 
 Every agent run is appended to <out>/runs.jsonl as soon as it finishes, so an
 interrupted benchmark keeps everything measured so far.
@@ -21,7 +26,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from . import engine
 from .agents import BUILDERS, DEFAULT_MODEL, make_model
-from .cases import CASES
+from .cases import sample_cases
 from .metrics import UsageRecorder, grade
 from .procedures import BY_CODE
 
@@ -96,8 +101,10 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", type=int, default=3)
     ap.add_argument("--variants", nargs="+", default=["A", "B"], choices=["A", "B"])
-    ap.add_argument("--cases", nargs="*", help="case ids (default: all 12)")
-    ap.add_argument("--model", default=DEFAULT_MODEL)
+    ap.add_argument("--cases-per-run", type=int, default=15, help="random procedures per repetition (max 80)")
+    ap.add_argument("--seed", type=int, default=None, help="base seed (default: random, saved in meta.json)")
+    ap.add_argument("--model", default=DEFAULT_MODEL, help="claude-haiku-5-5 | ollama:<model> | openai:<model>")
+    ap.add_argument("--num-ctx", type=int, default=131072, help="context window for ollama models")
     ap.add_argument("--effort", default=None, help="output_config.effort (default: model default)")
     ap.add_argument("--dry-run", action="store_true", help="scripted offline model, no API calls")
     ap.add_argument("--out", default=None, help="output dir (default results/<timestamp>)")
@@ -109,28 +116,32 @@ def main() -> None:
         load_dotenv(ROOT / ".env")
     except ImportError:
         pass
-    if not args.dry_run and not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
+    anthropic = ":" not in args.model or args.model.startswith("anthropic:")
+    if not args.dry_run and anthropic and not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
         raise SystemExit("ANTHROPIC_API_KEY is not set (put it in the environment or in .env). Use --dry-run for an offline check.")
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out_dir = Path(args.out) if args.out else ROOT / "results" / (("dryrun-" if args.dry_run else "") + stamp)
     out_dir.mkdir(parents=True, exist_ok=True)
-    cases = [c for c in CASES if not args.cases or c["id"] in args.cases]
+    seed = args.seed if args.seed is not None else int.from_bytes(os.urandom(3), "big")
     meta = {
         "started_utc": stamp,
         "model": "scripted-fake" if args.dry_run else args.model,
         "effort": args.effort,
         "runs": args.runs,
         "variants": args.variants,
-        "cases": [c["id"] for c in cases],
+        "cases_per_run": args.cases_per_run,
+        "seed": seed,
         "dry_run": args.dry_run,
     }
     (out_dir / "meta.json").write_text(json.dumps(meta, indent=2))
     runs_path = out_dir / "runs.jsonl"
 
-    total = args.runs * len(cases) * len(args.variants)
+    total = args.runs * args.cases_per_run * len(args.variants)
     done = 0
     for rep in range(1, args.runs + 1):
+        cases = sample_cases(args.cases_per_run, seed + rep)
+        (out_dir / f"cases_rep{rep}.json").write_text(json.dumps(cases, indent=1, ensure_ascii=False), encoding="utf-8")
         for case in cases:
             for variant in args.variants:
                 if args.dry_run:
@@ -139,14 +150,14 @@ def main() -> None:
                     skill = f"/skills/{BY_CODE[case['procedure_code']].skill_name}/SKILL.md"
                     model = ScriptedModel(case=case, skill_path=skill if variant == "B" else None)
                 else:
-                    model = make_model(args.model, args.effort)
+                    model = make_model(args.model, args.effort, args.num_ctx)
                 r = run_one(variant, case, model)
                 r["rep"] = rep
                 with runs_path.open("a", encoding="utf-8") as f:
                     f.write(json.dumps(r, ensure_ascii=False) + "\n")
                 done += 1
                 print(
-                    f"[{done}/{total}] rep={rep} {variant} {case['id']} {case['procedure_code']:<20} "
+                    f"[{done}/{total}] rep={rep} {variant} {case['id']} {case['procedure_code']:<36} "
                     f"ok={r['fully_correct']!s:<5} engine_calls={r['engine_calls']} llm_calls={r['llm_calls']} "
                     f"in={r['input_total']} (cache_read={r['cache_read']}) out={r['output']} {r['wall_s']:.1f}s"
                     + (f" ERROR {r['error']}" if r["error"] else ""),
