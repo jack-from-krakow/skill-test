@@ -7,7 +7,7 @@ Test porównuje dwa sposoby podania agentowi tej samej wiedzy proceduralnej:
 | Framework | LangChain `create_agent` (zwykły agent z function calling) | LangChain **deepagents** `create_deep_agent` |
 | Wiedza o 12 procedurach | wszystkie 12 opisów w jednym system prompcie | 12 skilli (`SKILL.md`), agent widzi tylko nazwy i opisy, pełną treść czyta `read_file` na żądanie |
 | System prompt | nagłówek + 12 procedur (~24 tys. znaków) | ten sam nagłówek + jedno zdanie o skillach (+ lista skilli dodawana przez deepagents) |
-| Tool | `credit_analysis_engine` (identyczny) | `credit_analysis_engine` (identyczny) + wbudowane narzędzia deepagents |
+| Tool | `credit_analysis_engine` (identyczny, stub, min. 20 ms) | `credit_analysis_engine` (identyczny) + wbudowane narzędzia deepagents |
 | Prompt usera | identyczny | identyczny |
 | Model | `claude-haiku-5-5` | `claude-haiku-5-5` |
 | Prompt caching | `AnthropicPromptCachingMiddleware` | to samo (deepagents dodaje je automatycznie) |

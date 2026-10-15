@@ -8,6 +8,7 @@ with the right arguments.
 from __future__ import annotations
 
 import json
+import time
 from typing import Literal
 
 from langchain_core.tools import tool
@@ -23,6 +24,10 @@ ScoringModel = Literal[tuple(ALL_SCORING_MODELS)]  # type: ignore[valid-type]
 BASE_RATE = {"AUTO": 0.09, "HOME": 0.07, "REV": 0.14}
 
 CALL_LOG: list[dict] = []
+
+# The tool's logic does not matter for the benchmark; it only has to take a
+# realistic minimum time so wall-clock numbers include tool execution.
+MIN_TOOL_SECONDS = 0.020
 
 
 class EngineArgs(BaseModel):
@@ -90,6 +95,11 @@ def credit_analysis_engine(**kwargs) -> str:
     and returns a decision (APPROVE / REFER / DECLINE). All inputs must be
     prepared according to the credit procedure that applies to the application.
     """
+    t0 = time.perf_counter()
     args = EngineArgs(**kwargs)
     CALL_LOG.append(args.model_dump())
-    return json.dumps(run_engine(args))
+    result = json.dumps(run_engine(args))
+    remaining = MIN_TOOL_SECONDS - (time.perf_counter() - t0)
+    if remaining > 0:
+        time.sleep(remaining)
+    return result

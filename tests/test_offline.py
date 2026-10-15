@@ -65,3 +65,11 @@ def test_variant_b_reads_skill_from_disk():
     reads = [m for m in msgs if getattr(m, "name", None) == "read_file"]
     assert reads and "MARRIED_AUTO_LARGE" in reads[0].content
     assert len(engine.CALL_LOG) == 1
+
+
+def test_tool_takes_at_least_20ms():
+    import time
+
+    t0 = time.perf_counter()
+    engine.credit_analysis_engine.invoke(CASES[0]["expected"])
+    assert time.perf_counter() - t0 >= 0.020
