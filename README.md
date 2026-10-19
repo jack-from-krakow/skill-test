@@ -7,7 +7,7 @@ Test porównuje sposoby podania agentowi tej samej wiedzy proceduralnej:
 | Framework | LangChain `create_agent` (zwykły agent z function calling) | LangChain **deepagents** `create_deep_agent` |
 | Wiedza o 80 procedurach | wszystkie 80 opisów w jednym system prompcie | 80 skilli (`SKILL.md`), agent widzi tylko nazwy i opisy, pełną treść czyta `read_file` na żądanie |
 | System prompt | nagłówek + 80 procedur (~200 tys. znaków, ok. 50 tys. tokenów) | ten sam nagłówek + jedno zdanie o skillach (+ lista skilli dodawana przez deepagents) |
-| Tool | `credit_analysis_engine` (identyczny, stub, min. 20 ms) | `credit_analysis_engine` (identyczny) + wbudowane narzędzia deepagents |
+| Tool | `credit_analysis_engine` (identyczny, stub, stałe ~20 ms) | `credit_analysis_engine` (identyczny) + wbudowane narzędzia deepagents |
 | Prompt usera | identyczny | identyczny |
 | Model | `claude-haiku-5-5` | `claude-haiku-5-5` |
 | Prompt caching | `AnthropicPromptCachingMiddleware` | to samo (deepagents dodaje je automatycznie) |
@@ -40,7 +40,7 @@ jak i klucz odpowiedzi do oceny. Wariant A składa system prompt z tych samych p
 
 Przypadki testowe są losowane ([`skilltest/cases.py`](skilltest/cases.py)): w każdym
 powtórzeniu losowane jest 15 różnych procedur z 80 i dla każdej generowany jest
-kompletny wniosek. Warianty A i B w danym powtórzeniu dostają identyczne wnioski.
+kompletny wniosek. Wszystkie warianty w danym powtórzeniu dostają identyczne wnioski.
 Seed jest zapisany w `meta.json`, a wylosowane wnioski w `cases_rep<N>.json`.
 Prompt nie mówi, która procedura obowiązuje. Wnioski zawierają dane, które
 procedura każe zignorować (premia osoby na działalności lub emeryta, cena auta przy
@@ -79,7 +79,7 @@ python -m skilltest.analyze results\<katalog z poprzedniego kroku>
 Linux/macOS analogicznie (`python3 -m venv .venv && . .venv/bin/activate`).
 
 Opcje `run_benchmark`: `--runs N`, `--cases-per-run 15`, `--seed N`,
-`--variants A B`, `--model claude-haiku-5-5`, `--effort low|medium|high`,
+`--variants A B C`, `--model claude-haiku-5-5`, `--effort low|medium|high`,
 `--dry-run` (skryptowany model bez API, tylko do sprawdzenia pipeline'u; tokeny
 w nim to szacunki).
 
@@ -98,7 +98,7 @@ Pełny przebieg to 3 × 15 × 3 warianty = 135 zadań, ok. 360 wywołań modelu.
 
 ## Kolejność i cache
 
-Zadania idą sekwencyjnie: powtórzenie → przypadek → wariant (A, potem B).
+Zadania idą sekwencyjnie: powtórzenie → przypadek → wariant (A, B, C).
 Prefiks (tools + system prompt) jest stały w obrębie wariantu, więc po pierwszym
 zadaniu oba warianty czytają go z cache. Tabela „według powtórzenia” w raporcie
 pokazuje, ile daje cache.
